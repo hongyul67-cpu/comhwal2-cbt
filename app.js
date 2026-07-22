@@ -77,10 +77,11 @@ function buildExam(counts, minutes, bestFirst) {
     var pool = bestFirst
       ? shuffle(bestPool(s.key).concat(roundPool(s.key))).concat(shuffle(poolOf(s.key)))
       : shuffle(poolOf(s.key).concat(bestPool(s.key)).concat(roundPool(s.key)));
-    // 같은 문제가 두 은행에 겹쳐 들어있을 수 있어 지문 앞부분으로 중복 제거
+    // 같은 문제가 두 은행에 겹쳐 들어있을 수 있어 중복 제거.
+    // "조건부 서식…옳지 않은 것은?"처럼 지문이 같고 보기만 다른 기출이 있어 첫 보기까지 키에 포함한다.
     var seen = {}, added = 0;
     for (var j = 0; j < pool.length && added < want; j++) {
-      var k = String(pool[j].q).slice(0, 50);
+      var k = String(pool[j].q).slice(0, 50) + '|' + String(pool[j].o[0]).slice(0, 30);
       if (seen[k]) continue;
       seen[k] = 1;
       qs.push(makeQ(pool[j]));
