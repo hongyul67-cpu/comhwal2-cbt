@@ -318,6 +318,12 @@ function doSubmit(auto) {
   exam.result = grade();
   exam.durationSec = Math.round((Date.now() - exam.startTime) / 1000);
   recordWrongs(exam.qs);          // 누적 오답 갱신(맞힌 건 제거, 틀린 건 추가)
+  /* 랭킹전 — 필기 CBT 는 실전이므로 RP 2배, 합격하면 보너스 30 */
+  exam.rp = hasRank()
+    ? CH2Rank.award(exam.result.totalCorrect,
+                    exam.result.totalQ - exam.result.totalCorrect,
+                    2, (!exam.isReview && exam.result.pass) ? 30 : 0)
+    : null;
   showResult(auto);
 }
 
@@ -346,6 +352,7 @@ function showResult(auto) {
       (isRev ? '<div style="color:var(--tx2);font-size:13px;margin:6px 0">맞힌 문제는 오답 목록에서 빠졌어요 · 남은 오답 <b style="color:var(--warn)">' + loadWrong().length + '문항</b></div>' : '') +
       '<div class="subjscores">' + ss + '</div>' +
       (!isRev && r.hasFail ? '<div style="color:var(--no);font-size:13px;margin-bottom:8px">한 과목 이상 40점 미만(과락)입니다.</div>' : '') +
+      rankBanner(exam.rp) +
       submitBtnHtml() +
       '<div class="row" style="justify-content:center;margin-top:8px;flex-wrap:wrap">' +
         '<button class="btn sec" onclick="openReview()">📝 오답노트 (' + wrongN + ')</button>' +
@@ -353,6 +360,11 @@ function showResult(auto) {
       '</div>' +
     '</div>';
 }
+
+/* ---------- 랭킹전(2급 공용 계급) ---------- */
+function hasRank() { return !!window.CH2Rank; }
+function rankBanner(r) { return (hasRank() && r) ? CH2Rank.bannerHtml(r) : ''; }
+function rankTier() { return hasRank() ? CH2Rank.tierOf(CH2Rank.rp()).name : undefined; }
 
 /* ---------- 결과 제출(collector) ---------- */
 function submitEnabled() {
@@ -368,6 +380,7 @@ function submitResult() {
   var r = exam.result;
   ResultCollector.config.tool = '컴활2급 필기CBT · ' + (exam.title || '모의고사');
   ResultCollector.open({
+    tier: rankTier(),               /* 생기부 — 현재 계급 */
     score: r.avg,
     correct: r.totalCorrect,
     total: r.totalQ,
