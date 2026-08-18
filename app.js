@@ -371,22 +371,50 @@ function submitEnabled() {
   return !!(window.ResultCollector && ResultCollector.config && ResultCollector.config.endpoint);
 }
 function submitBtnHtml() {
-  if (!submitEnabled()) return '';
+  
   return '<div class="row" style="justify-content:center;margin:6px 0 12px">' +
     '<button class="btn green" id="cbtSubmit" onclick="submitResult()">📤 선생님께 결과 제출</button></div>';
 }
+/* 틀린 문제를 "무엇을 틀렸는지"로 (규약 §1 ②) — "7번 하이퍼링크→인덱스" */
+function rcShort(t, len) {
+  t = String(t == null ? '' : t).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.length > len ? t.slice(0, len - 1) + '\u2026' : t;
+}
+function rcWrongList() {
+  var qs = (typeof exam !== 'undefined' && exam.qs) ? exam.qs : [];
+  var out = [];
+  qs.forEach(function (q, i) {
+    if (q.sel === q.ans) return;
+    var ch = q.choices || q.opts || [];
+    var txt = function (o) { return (o && typeof o === 'object') ? (o.t != null ? o.t : o.text) : o; };
+    var mine = (q.sel != null && ch[q.sel] != null) ? rcShort(txt(ch[q.sel]), 16) : '\ubb34\uc751\ub2f5';
+    var ans = (ch[q.ans] != null) ? rcShort(txt(ch[q.ans]), 16) : '?';
+    out.push((q.no != null ? q.no : (i + 1)) + '\ubc88 ' + mine + '\u2192' + ans);
+  });
+  return out;
+}
+function submitGuide() {
+  alert(['이 링크로는 제출이 되지 않아요.', '',
+    '선생님이 나눠 준 제출용 링크(주소 뒤에 ?rc=... 가 붙은 링크)로',
+    '들어와야 반·번호를 입력하고 결과를 보낼 수 있습니다.', '',
+    '연습은 지금 이대로 계속 하셔도 됩니다.'].join(String.fromCharCode(10)));
+}
 function submitResult() {
-  if (!submitEnabled()) return;
+  if (!submitEnabled()) { submitGuide(); return; }
   var r = exam.result;
-  ResultCollector.config.tool = '컴활2급 필기CBT · ' + (exam.title || '모의고사');
+  // 시트 탭은 하나로 — 회차는 mode 로 (규약 §1 ①)
+  ResultCollector.config.tool = '컴활 2급 필기CBT';
   ResultCollector.open({
     tier: rankTier(),               /* 생기부 — 현재 계급 */
     score: r.avg,
     correct: r.totalCorrect,
     total: r.totalQ,
     durationSec: exam.durationSec,
-    labels: { score: '평균점수', correct: '맞힘', total: '문항수', wrong: '합격여부' },
-    wrong: exam.isReview ? '복습' : (r.pass ? '합격' : '불합격'),
+    labels: { score: '평균점수', correct: '맞힘', total: '문항수' },
+    mode: '컴활 2급 필기 — ' + (exam.title || '모의고사') +
+          (exam.isReview ? ' (복습)' : (r.pass ? ' (합격)' : ' (불합격)')),
+    extra: ['필기 모의고사 응시'],
+    wrong: rcWrongList(),
   });
 }
 
