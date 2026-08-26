@@ -284,8 +284,12 @@ function openPalette() {
     '<button class="btn green" style="width:100%;margin-top:16px" onclick="closePalette();confirmSubmit()">답안 제출하기</button>' +
     '</div>';
   document.body.appendChild(d);
+  document.body.classList.add('dw-open');   /* 떠 있는 위젯 숨기기 */
 }
-function closePalette() { var d = $('paletteDrawer'); if (d) d.remove(); }
+function closePalette() {
+  var d = $('paletteDrawer'); if (d) d.remove();
+  document.body.classList.remove('dw-open');
+}
 
 /* ---------- 제출·채점 ---------- */
 function confirmSubmit() {
