@@ -60,13 +60,44 @@ function roundById(id) {
   return PAST.rounds.filter(function (r) { return r.id === id; })[0] || null;
 }
 
-function makeQ(item, keepOrder) {
-  var opts = item.o.map(function (t, i) { return { t: t, correct: i === item.a }; });
-  if (!keepOrder) opts = shuffle(opts);
+/* ── 수업용 고정 순서 ──────────────────────────────────────
+   ?fix=… 로 들어오면 fixorder.js 가 켜진다. 이때 기출 회차는 기본이 «섞지 않음» —
+   시험지 번호가 그대로라 "12번 보세요" 가 통한다. 켜더라도 그날 시드로 우리끼리
+   난수를 만들어 쓰므로 학생 전원이 같은 순서를 받는다. */
+function fixMode() { return !!(window.FixOrder && window.FixOrder.on); }
+function mixRnd(key) {
+  if (!fixMode()) return Math.random;
+  var h = 2166136261, k = String(key);
+  for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = (h * 16777619) >>> 0; }
+  var a = ((window.FixOrder.seed >>> 0) ^ h) >>> 0;
+  return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function shuffledBy(a, rnd) {
+  a = a.slice();
+  for (var i = a.length - 1; i > 0; i--) { var j = Math.floor((rnd || Math.random)() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+var CIRC4 = ['①', '②', '③', '④'];
+var CIRCRE = /[①②③④]/, AGGREG = /모두 (옳|맞|정답|해당)|위 모두|위의 모두|정답이 없|해당 없/;
+/* 보기를 섞으면 안 되는 문항 — 문제·보기에 ①~④ 가 적혀 있거나 «위 모두 옳다» 류 */
+function optLocked(item) {
+  return CIRCRE.test(item.q || '') || item.o.some(function (o) { return CIRCRE.test(o) || AGGREG.test(o); });
+}
+function makeQ(item, keepOrder, rnd) {
+  var lock = keepOrder || optLocked(item);
+  var order = item.o.map(function (_, i) { return i; });
+  if (!lock) order = shuffledBy(order, rnd);
+  var opts = order.map(function (i) { return { t: item.o[i], correct: i === item.a }; });
+  var to = []; order.forEach(function (old, now) { to[old] = now; });
+  /* 해설이 «③은 알파 버전» 처럼 번호를 짚는 곳이 있어 함께 옮긴다 */
+  var ex = item.ex;
+  if (!lock) ex = String(item.ex == null ? '' : item.ex)
+    .replace(/[①②③④]/g, function (c) { return CIRC4[to[CIRC4.indexOf(c)]]; });
   return {
     subj: item.subj, subjName: item.subjName || SUBJ_NAME[item.subj], unit: item.unit,
     q: item.q, opts: opts, ans: opts.findIndex(function (o) { return o.correct; }),
-    ex: item.ex, sel: null, flag: false,
+    ex: ex, sel: null, flag: false,
   };
 }
 function buildExam(counts, minutes, bestFirst) {
@@ -147,6 +178,13 @@ function makeCard(title, desc, color, onclick) {
 }
 function renderStart() {
   hide('loading'); hide('exam'); hide('result'); hide('review'); show('start');
+  var mb = $('examMix'), mn = $('examMixNote');
+  if (mb && !mb.dataset.set) {
+    mb.dataset.set = '1'; mb.checked = !fixMode();
+    if (mn) mn.innerHTML = fixMode()
+      ? '🎓 <b>수업용 링크</b>로 들어왔습니다. 꺼 두면 기출은 시험지 번호 그대로라 «12번 보세요» 가 그대로 통합니다. 켜더라도 오늘 이 링크로 들어온 학생은 모두 같은 순서를 받습니다.'
+      : '기출 회차에 든 문제는 그대로이고 나오는 <b>차례</b>와 <b>보기 차례</b>만 바뀝니다. (랜덤 모의고사는 원래부터 섞여 나옵니다)';
+  }
   var box = $('modeList'); box.innerHTML = '';
 
   // 1) 누적 오답
@@ -191,13 +229,17 @@ function startExam(m) {
   exam.deadline = Date.now() + m.min * 60000;
   enterExam();
 }
+function mixOn() { var b = $('examMix'); return !!(b && b.checked); }
+/* 기출 회차 — 스위치를 끄면 시험지 그대로(문제·보기 순서 원본) */
 function startPastRound(id) {
   var r = roundById(id);
   if (!r || !r.qs || !r.qs.length) { alert('해당 회차를 불러오지 못했습니다.'); return; }
   var mins = r.minutes || 40;
-  // 실제 기출은 보기 순서를 시험지 그대로 유지
+  var on = mixOn(), rnd = mixRnd('round:' + id);
+  var src = r.qs.map(function (x) { return { subj: x.subj, q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name }; });
+  if (on) src = shuffledBy(src, rnd);
   exam = {
-    qs: r.qs.map(function (x) { return makeQ({ subj: x.subj, q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name }, true); }),
+    qs: src.map(function (x) { return makeQ(x, !on, rnd); }),
     idx: 0, minutes: mins, deadline: Date.now() + mins * 60000,
     timer: null, startTime: Date.now(), title: r.name, isPast: true,
   };
@@ -207,8 +249,10 @@ function startBestRun() {
   var items = bestPool(null);
   if (!items.length) { alert('기출 모음을 불러오지 못했습니다.'); return; }
   var mins = Math.max(20, items.length);
+  var on = mixOn(), rnd = mixRnd('best');
+  var src = on ? shuffledBy(items, rnd) : items;
   exam = {
-    qs: items.map(function (x) { return makeQ(x, true); }),
+    qs: src.map(function (x) { return makeQ(x, !on, rnd); }),
     idx: 0, minutes: mins, deadline: Date.now() + mins * 60000,
     timer: null, startTime: Date.now(), title: PAST.best.name, isReview: true,
   };
