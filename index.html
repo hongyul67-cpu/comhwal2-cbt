@@ -149,6 +149,11 @@
         · 과락 없이 <b style="color:var(--ok)">전체 평균 60점 이상</b>이면 합격
       </div>
     </div>
+    <div style="text-align:center;margin-top:14px">
+      <button type="button" id="openBoard"
+        style="background:none;border:none;color:var(--tx2);font-size:13px;cursor:pointer;padding:6px">
+        📽️ 수업 슬라이드 열기 (선생님용) →</button>
+    </div>
     <div class="footer">실제 기출 회차 + <b>컴활 2급 필기 개념게임</b> 문제 은행</div>
   </section>
 
@@ -271,5 +276,43 @@
 <!-- 공용 기록 초기화 (교실 공용 PC용) -->
 <script src="https://hongyul67-cpu.github.io/links/reset.js"></script>
 <script src="https://hongyul67-cpu.github.io/links/backbar.js"></script>
+
+<!-- 수업 슬라이드 — 원고(lesson.js) 는 이 저장소 것, 화면(board-pro.js) 은 links 의 공용 파일이다.
+     저장소에 사본을 두지 않는다. 화면을 고쳐야 하면 links 저장소에서 고친다. -->
+<script src="lesson.js"></script>
+<script src="https://hongyul67-cpu.github.io/links/board-pro.js"></script>
+<script>
+/* 선생님용 입구 — 학생용 모의고사는 그대로 두고, 시험 전 총정리를 교실 화면용 슬라이드로 연다. */
+(function(){
+  var b = document.getElementById('openBoard');
+  if(!b) return;
+  b.onclick = function(){
+    if(!window.BoardPro || !(window.LESSON||[]).length){
+      alert('수업자료를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.'); return;
+    }
+    var ALL = window.LESSON, LF = window.LESSFIG || {}, units = [];
+    ALL.forEach(function(s){ if(units.indexOf(s.u)<0) units.push(s.u); });
+    var menu = units.map(function(u){
+      var list = ALL.filter(function(s){ return s.u===u; });
+      return { icon:'📘', title:u, desc:'슬라이드 '+list.length+'장 · '+list[0].t,
+               run:{ kind:'lesson', deck:list } };
+    });
+    menu.push({ icon:'📚', wide:true, title:'전체 이어서 ('+ALL.length+'장)',
+                desc:'시험의 짜임부터 자주 나오는 40주제까지 순서대로 진행합니다.',
+                run:{ kind:'lesson', deck:ALL } });
+    menu.push({ icon:'⬜', wide:true, title:'빈 칠판',
+                desc:'슬라이드 없이 판서만. 기출을 함께 풀어 보며 설명할 때.',
+                run:{ kind:'blank' } });
+    BoardPro.open({
+      title:'📽️ 컴활 2급 필기 · 수업 슬라이드',
+      sub:'요점 → <b>발문</b> → 퀴즈 → 정답을 하나씩 엽니다. 화면 어디든 바로 판서됩니다.<br>'+
+          '요점 속 <b>파란 빈칸</b>은 눌러야 답이 보입니다.',
+      menu: menu,
+      fig: function(s){ return (s.fig && LF[s.fig]) ? LF[s.fig]() : ''; }
+    });
+  };
+})();
+</script>
+
 </body>
 </html>
