@@ -213,6 +213,9 @@ function renderStart() {
   MODES.forEach(function (m) {
     box.appendChild(makeCard(m.nm, m.ds, null, function () { startExam(m); }));
   });
+
+  // 5) 기출이 아직 안 열렸으면 잠금 칸을 보인다 (개념 모의고사는 위에 이미 열려 있다)
+  paintLock();
 }
 
 /* ---------- 시험 진행 ---------- */
@@ -521,3 +524,163 @@ function init() {
   });
 }
 window.addEventListener('load', init);
+
+/* =========================================================
+   실제 기출 잠금 해제
+   ─────────────────────────────────────────────────────────
+   기출 회차·120선은 기출공략집을 옮긴 것이라 그대로 공개할 수 없다.
+   정적 호스팅에서는 화면 비밀번호가 보호가 되지 않으므로(파일 주소를 직접 치면
+   그대로 받아진다) 문항 파일 자체를 AES-GCM 으로 암호화해 past.enc 하나로 두고,
+   여기서 WebCrypto 로 실제 복호화한다. 암호가 틀리면 복호화가 실패한다.
+
+   개념 문항(comhwal2 저장소의 자작 문항)은 잠그지 않는다 —
+   코드가 없어도 랜덤·과목별 모의고사는 그대로 풀 수 있다.
+
+   저장 키가 두 개인 이유 —
+     LOCK_KEY   이 도구에서 성공한 암호
+     SHARED_KEY 도구 전체 공용. 도구가 모두 같은 주소에 있어 localStorage 를
+                공유하므로 어디서든 한 번 열면 나머지도 그냥 열린다.
+   실패해도 공용 키는 지우지 않는다 — 여기서 안 맞는 암호가 다른 도구에서는
+   맞을 수 있어, 지우면 남의 기억까지 날리게 된다.
+   ========================================================= */
+var LOCK_KEY = 'ch2cbt_pw_v1', SHARED_KEY = 'hong_pw_v1';
+var LOCK_INFO = null;
+
+function lb64(x) { return Uint8Array.from(atob(x), function (c) { return c.charCodeAt(0); }); }
+function lIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function lMonday(d) {
+  var x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x;
+}
+
+/* 기출이 열렸는지에 따라 잠금 칸을 보이거나 감춘다 */
+function paintLock() {
+  var box = $('pastLock'); if (!box) return;
+  var ok = PAST && ((PAST.rounds && PAST.rounds.length) || (PAST.best && PAST.best.items && PAST.best.items.length));
+  box.classList.toggle('hidden', !!ok);
+}
+
+/* 감싼 키들을 훑어 맞는 것을 찾는다. salt 를 공유하므로 PBKDF2 는 딱 1회 돈다. */
+function lFindKey(kek, keys) {
+  var i = 0;
+  function next() {
+    if (i >= keys.length) return Promise.reject(new Error('BADPW'));
+    var k = keys[i++];
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: lb64(k.iv) }, kek, lb64(k.blob))
+      .then(function (p) { return JSON.parse(new TextDecoder().decode(p)); }, next);
+  }
+  return next();
+}
+/* 교사용으로 열면 그 주 학생 코드를 계산해 보여 준다.
+   마스터 시크릿은 교사용으로 감싼 안쪽에만 있어 학생 코드로는 계산할 수 없다. */
+function lWeekCode(msB64, mon) {
+  return crypto.subtle.importKey('raw', lb64(msB64), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    .then(function (k) {
+      return crypto.subtle.sign('HMAC', k,
+        new TextEncoder().encode(((LOCK_INFO && LOCK_INFO.prefix) || 'HONGW|') + lIso(mon)));
+    })
+    .then(function (buf) {
+      var s = new Uint8Array(buf);
+      var n = ((s[0] << 24) >>> 0) + (s[1] << 16) + (s[2] << 8) + s[3];
+      return String(n % 90000000 + 10000000);
+    });
+}
+
+function unlockPast(pw, quiet) {
+  var msg = $('lockMsg');
+  function say(t, cls) {
+    if (quiet && cls !== 'bad') return;
+    if (!msg) return;
+    msg.innerHTML = t; msg.className = 'lk-m' + (cls ? ' ' + cls : '');
+  }
+  say('여는 중…');
+  return fetch('past.enc', { cache: 'no-store' }).then(function (r) { return r.json(); })
+    .then(function (blob) {
+      return crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey'])
+        .then(function (base) {
+          return crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: lb64(blob.kdf.salt), iterations: blob.kdf.iter, hash: 'SHA-256' },
+            base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+        })
+        .then(function (kek) { return lFindKey(kek, blob.keys); })
+        .then(function (info) {
+          var today = lIso(new Date()), e;
+          if (info.nbf && today < info.nbf) { e = new Error('NOTYET'); e.when = info.nbf; throw e; }
+          if (info.exp && today >= info.exp) { e = new Error('EXPIRED'); e.when = info.exp; throw e; }
+          LOCK_INFO = info;
+          return crypto.subtle.importKey('raw', lb64(info.ck), { name: 'AES-GCM' }, false, ['decrypt']);
+        })
+        .then(function (ck) {
+          var u = lb64(blob.data);
+          return crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, ck, u.slice(12));
+        })
+        .then(function (gz) {
+          var ds = new DecompressionStream('gzip');
+          return new Response(new Blob([gz]).stream().pipeThrough(ds)).text();
+        })
+        .then(function (txt) {
+          var payload = JSON.parse(txt);
+          /* 표(PAST.T)는 빌드할 때 이미 HTML 로 바뀌어 들어 있다 — 런타임엔 필요 없다 */
+          window.COMHWAL2_PAST = { best: payload.best, rounds: payload.rounds };
+          refreshGlobals();
+          try {
+            localStorage.setItem(LOCK_KEY, pw);
+            if (!LOCK_INFO.exp) localStorage.setItem(SHARED_KEY, pw);   // 만료되는 코드는 공용에 넣지 않는다
+          } catch (e) {}
+          var n = (blob.n || 0);
+          if (!quiet && LOCK_INFO.role === 'teacher' && LOCK_INFO.ms) {
+            return lWeekCode(LOCK_INFO.ms, lMonday(new Date())).then(function (c) {
+              say('✅ 기출 ' + n + '문항이 열렸어요!<br><b style="color:var(--gold)">이번 주 학생 코드 — '
+                + c.slice(0, 4) + ' ' + c.slice(4) + '</b>', 'ok');
+              return true;
+            });
+          }
+          say('✅ 기출 ' + n + '문항이 열렸어요!', 'ok');
+          return true;
+        });
+    })
+    .then(function () {
+      if ($('lockPw')) $('lockPw').value = '';
+      renderStart();
+      return true;
+    })
+    .catch(function (e) {
+      var m = e && e.message;
+      if (m === 'EXPIRED') say('사용 기간이 끝난 코드예요(' + e.when + '까지). 선생님께 이번 주 코드를 받으세요.', 'bad');
+      else if (m === 'NOTYET') say('아직 쓸 수 없는 코드예요. ' + e.when + '부터 쓸 수 있어요.', 'bad');
+      else say('코드가 맞지 않아요.', 'bad');
+      try { localStorage.removeItem(LOCK_KEY); } catch (_) {}   // 공용 키는 건드리지 않는다
+      return false;
+    });
+}
+
+/* 문항 수 표시 + 이전에 열었으면 조용히 자동 해제 */
+(function () {
+  fetch('past.enc', { cache: 'no-store' }).then(function (r) { return r.json(); })
+    .then(function (b) { if ($('lockN')) $('lockN').textContent = (b.n || 0) + '문항'; })
+    .catch(function () { if ($('lockN')) $('lockN').textContent = '(준비 중)'; });
+
+  var go = function () {
+    var btn = $('lockGo'), inp = $('lockPw');
+    if (!btn || !inp) return;
+    btn.onclick = function () {
+      var pw = inp.value.replace(/\s+/g, '');
+      if (!pw) { inp.focus(); return; }
+      unlockPast(pw, false);
+    };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+
+  try {
+    var a = localStorage.getItem(LOCK_KEY), b = localStorage.getItem(SHARED_KEY), t = [];
+    if (a) t.push(a);
+    if (b && b !== a) t.push(b);
+    (function next(i) {
+      if (i >= t.length) return;
+      unlockPast(t[i], true).then(function (ok) { if (!ok) next(i + 1); });
+    })(0);
+  } catch (e) {}
+})();

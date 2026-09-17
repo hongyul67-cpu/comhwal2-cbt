@@ -1,0 +1,8 @@
+# 기출공략집 전사(평문)는 절대 커밋 금지 — 배포에는 암호화된 past.enc 만 들어간다.
+# 다시 구우려면 이 파일들이 있는 PC에서 python build_lock.py
+data/best-*.js
+data/r20*.js
+
+# 학생 코드표(평문)도 절대 커밋 금지
+codes.txt
+codes*.txt

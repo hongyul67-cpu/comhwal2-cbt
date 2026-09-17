@@ -120,9 +120,20 @@
   .reviewitem{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px;text-align:left}
   .footer{text-align:center;color:var(--tx2);font-size:12px;margin-top:26px;line-height:1.6}
   .loading{text-align:center;color:var(--tx2);padding:40px}
+
+  /* 🔒 실제 기출 잠금 — 개념 모의고사는 그대로 열려 있고, 이 칸만 코드를 받는다 */
+  .lockbox{background:var(--card2);border:1.5px solid var(--gold);border-radius:12px;padding:14px 16px;margin:10px 0 0}
+  .lockbox.hidden{display:none}
+  .lk-t{font-size:14.5px;font-weight:700}
+  .lk-s{font-size:12.5px;color:var(--tx2);line-height:1.6;margin:6px 0 10px}
+  .lk-row{display:flex;gap:8px;flex-wrap:wrap}
+  .lk-row input{flex:1;min-width:150px;padding:10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--tx);font-size:15px;text-align:center;letter-spacing:2px;font-family:inherit}
+  .lk-m{min-height:18px;font-size:12.5px;color:var(--tx2);margin-top:8px;line-height:1.6}
+  .lk-m.bad{color:var(--no)} .lk-m.ok{color:var(--ok)}
 </style>
 </head>
-<body>
+<body data-build="1c1c558c">
 <div class="wrap">
   <div id="loading" class="loading">문제 은행을 불러오는 중…</div>
 
@@ -143,6 +154,21 @@
         <input type="checkbox" id="examMix" checked> 기출 회차도 문제·보기 순서 섞기</label>
       <div id="examMixNote" style="color:var(--tx2);font-size:12.5px;margin:0 0 12px;line-height:1.6"></div>
       <div class="opts-mode" id="modeList"></div>
+
+      <!-- 🔒 실제 기출은 파일 자체(past.enc)가 암호화되어 있고, 코드를 넣어야 열립니다.
+           위 개념 문제 모의고사는 자작 문항이라 코드 없이 그대로 풀립니다. -->
+      <div id="pastLock" class="lockbox hidden">
+        <div class="lk-t">🔒 <b>실제 기출 <span id="lockN">320문항</span></b> 은 코드를 넣어야 열려요</div>
+        <div class="lk-s">시중 교재를 옮긴 문항이라 그대로 공개할 수 없습니다.
+          선생님께 받은 <b>이번 주 코드(8자리)</b>나 암호를 넣으세요.<br>
+          위 <b>랜덤·과목별 모의고사</b>는 자작 개념 문항이라 코드 없이 바로 풀 수 있어요.</div>
+        <div class="lk-row">
+          <input id="lockPw" type="password" autocomplete="off" placeholder="이번 주 코드 또는 암호">
+          <button type="button" class="btn" id="lockGo">열기</button>
+        </div>
+        <div id="lockMsg" class="lk-m"></div>
+      </div>
+
       <div class="rulebox">
         <b>합격 기준</b> · 매 과목 100점 만점 환산.<br>
         · 한 과목이라도 <b style="color:var(--no)">40점 미만이면 과락(불합격)</b><br>
@@ -186,18 +212,11 @@
   </section>
 </div>
 
-<!-- 실제 기출 회차 (이 저장소 자체 데이터) -->
+<!-- 실제 기출 회차는 여기서 불러오지 않습니다.
+     기출공략집 전사라 평문으로 올릴 수 없어, 파일 자체를 AES-GCM 으로 암호화한
+     past.enc 하나로 두었습니다. 코드를 넣으면 app.js 가 풀어서 채웁니다.
+     (다시 구우려면 python build_lock.py — 평문 data/*.js 는 .gitignore) -->
 <script src="https://hongyul67-cpu.github.io/links/fixorder.js"></script>
-<script src="data/past-core.js"></script>
-<script src="data/best-1.js"></script>
-<script src="data/best-2.js"></script>
-<script src="data/best-3.js"></script>
-<script src="data/best-4.js"></script>
-<script src="data/r2023-1.js"></script>
-<script src="data/r2023-2.js"></script>
-<script src="data/r2023-3.js"></script>
-<script src="data/r2022-1.js"></script>
-<script src="data/r2022-2.js"></script>
 <!-- 개념 문제 은행: 컴활 2급 개념게임과 공유 (실패 시 app.js가 ../comhwal2/ 로 재시도) -->
 <script src="https://hongyul67-cpu.github.io/comhwal2/data/comp.js"></script>
 <script src="https://hongyul67-cpu.github.io/comhwal2/data/excel.js"></script>
