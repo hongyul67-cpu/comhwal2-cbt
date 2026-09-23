@@ -41,7 +41,7 @@ function bestPool(subjKey) {
   return PAST.best.items
     .filter(function (x) { return !subjKey || x.subj === subjKey; })
     .map(function (x) {
-      return { subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: x.tag || '기출 120선' };
+      return { subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: x.tag || '기출 120선', dan: x.dan };
     });
 }
 // 모든 기출 회차의 문항
@@ -50,10 +50,42 @@ function roundPool(subj) {
   var out = [];
   PAST.rounds.forEach(function (r) {
     (r.qs || []).forEach(function (x) {
-      if (!subj || x.subj === subj) out.push({ subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name, ver: x.ver });
+      if (!subj || x.subj === subj) out.push({ subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name, ver: x.ver, dan: x.dan });
     });
   });
   return out;
+}
+/* ── 단원별 기출 ─────────────────────────────────────────
+   회차 문항과 120선에 달린 dan(개념게임 단원 id)으로 모은다.
+   이름·아이콘은 개념게임(comhwal2) 단원과 같게 — 개념게임에서 배우고 여기서 기출로 확인한다. */
+var DANS = {
+  comp: [['win', '🪟', '한글 Windows 기본'], ['file', '📁', '파일과 폴더 관리'], ['winsys', '🛠️', 'Windows 시스템 관리'],
+         ['sys', '⚙️', '컴퓨터 시스템과 자료 표현'], ['hw', '💾', '기억장치와 하드웨어'], ['sw', '🧩', '소프트웨어와 프로그래밍'],
+         ['net', '🌐', '인터넷 활용'], ['multi', '🎬', '멀티미디어'], ['security', '🔒', '컴퓨터 보안과 정보 윤리']],
+  excel: [['basic', '🧾', '엑셀 기본과 데이터 입력'], ['format', '🎨', '셀 서식과 조건부 서식'], ['formula', '🧮', '수식과 셀 참조'],
+          ['func', '🔧', '주요 함수'], ['data', '🗂️', '데이터 관리(정렬·필터)'], ['analysis', '📈', '데이터 분석과 차트'],
+          ['print', '🖨️', '출력과 매크로']],
+};
+/* 같은 문제가 여러 회차·120선에 겹쳐 있어 dupKey 로 한 번만 넣는다. 최신 회차가 먼저 남도록 연도 역순. */
+function danPool(subj, dan) {
+  var rounds = roundPool(subj).filter(function (x) { return x.dan === dan; })
+    .sort(function (a, b) { return a.unit < b.unit ? 1 : a.unit > b.unit ? -1 : 0; });
+  var all = rounds.concat(bestPool(subj).filter(function (x) { return x.dan === dan; }));
+  var seen = {};
+  return all.filter(function (x) { var k = dupKey(x); if (seen[k]) return false; seen[k] = 1; return true; });
+}
+function startDanRun(subj, dan, name) {
+  var items = danPool(subj, dan);
+  if (!items.length) { alert('이 단원의 기출을 불러오지 못했습니다.'); return; }
+  var mins = Math.max(10, items.length);
+  var on = mixOn(), rnd = mixRnd('dan:' + subj + '/' + dan);
+  var src = on ? shuffledBy(items, rnd) : items;
+  exam = {
+    qs: src.map(function (x) { return makeQ(x, !on, rnd); }),
+    idx: 0, minutes: mins, deadline: Date.now() + mins * 60000,
+    timer: null, startTime: Date.now(), title: '단원별 기출 · ' + name, isReview: true,
+  };
+  enterExam();
 }
 function roundById(id) {
   if (!PAST || !PAST.rounds) return null;
@@ -232,6 +264,32 @@ function renderStart() {
       d.appendChild(inner);
       box.appendChild(d);
     });
+  }
+  // 2-1) 단원별 기출 — 단원 하나를 골라 그 단원 기출만 모아 푼다
+  if (PAST && PAST.rounds && PAST.rounds.length) {
+    var dd = document.createElement('details');
+    dd.className = 'yeargrp dangrp';
+    dd.open = !!OPEN_YEARS.dan;
+    dd.ontoggle = function () { OPEN_YEARS.dan = dd.open; };
+    var totalDan = 0, html = '';
+    SUBJECTS.forEach(function (s) {
+      html += '<div class="danhead">' + s.label + ' ' + s.name + '</div><div class="dangrid">';
+      DANS[s.key].forEach(function (d) {
+        var n = danPool(s.key, d[0]).length; totalDan += n;
+        html += '<button type="button" class="dancard" data-s="' + s.key + '" data-d="' + d[0] + '"' + (n ? '' : ' disabled') + '>' +
+          '<span class="di">' + d[1] + '</span><span class="dn">' + d[2] + '</span><span class="dc">' + n + '문항</span></button>';
+      });
+      html += '</div>';
+    });
+    dd.innerHTML = '<summary><span class="yn">📚 단원별 기출</span><span class="yd">단원 16개 · ' + totalDan +
+      '문항 · 한 단원만 골라 풀기</span></summary><div class="danbody">' + html + '</div>';
+    Array.prototype.forEach.call(dd.querySelectorAll('.dancard'), function (b) {
+      b.onclick = function () {
+        var d = DANS[b.dataset.s].filter(function (x) { return x[0] === b.dataset.d; })[0];
+        startDanRun(b.dataset.s, d[0], d[2]);
+      };
+    });
+    box.appendChild(dd);
   }
   // 3) 자주 출제되는 기출 모음
   if (PAST && PAST.best && PAST.best.items && PAST.best.items.length) {
@@ -417,9 +475,11 @@ function showResult(auto) {
   var verdict = isRev ? (r.totalCorrect + ' / ' + r.totalQ) : (r.pass ? '합격' : '불합격');
   var emoji = isRev ? (r.avg >= 80 ? '🎉' : '💪') : (r.pass ? '🎉' : '💪');
   var ss = r.scores.map(function (x) {
-    var failMark = x.score < FAIL_UNDER ? '<div class="flag">과락</div>' : '';
+    // 과락은 합격을 따지는 시험에서만 — 단원별·120선·오답 연습에는 붙이지 않는다
+    var low = !isRev && x.score < FAIL_UNDER;
+    var failMark = low ? '<div class="flag">과락</div>' : '';
     return '<div class="ss"><div class="nm">' + x.name + '</div>' +
-      '<div class="sc' + (x.score < FAIL_UNDER ? ' fail' : '') + '">' + x.score + '</div>' +
+      '<div class="sc' + (low ? ' fail' : '') + '">' + x.score + '</div>' +
       '<div class="nm">' + x.correct + '/' + x.total + '</div>' + failMark + '</div>';
   }).join('');
   var wrongN = r.totalQ - r.totalCorrect;

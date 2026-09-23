@@ -30,7 +30,24 @@
   };
 
   PAST.add = function (round) { PAST.rounds.push(round); };
-  PAST.addBest = function (items) { PAST.best.items = PAST.best.items.concat(items); };
+  // 120선은 주제(tag)마다 3문항씩 — 주제를 개념게임 단원 id(dan)에 짝지어 «단원별 기출»에 함께 쓴다.
+  // 회차 문항은 파일에 dan 을 직접 적어 둔다.
+  var TAG_DAN = {
+    'Windows의 특징': 'win', '바로 가기 키': 'win', '바로 가기 아이콘': 'win', '휴지통': 'file',
+    '[설정] 창': 'winsys', '네트워크 명령어': 'net', '연산 속도 단위': 'sys', '컴퓨터의 분류': 'sys',
+    '자료의 단위': 'sys', '문자 표현 코드': 'sys', '제어 장치': 'sys', '연산 장치': 'sys',
+    '주기억 장치': 'hw', '기타 기억 장치': 'hw', '소프트웨어의 구분': 'sw', '웹 프로그래밍 언어': 'sw',
+    'IPv6 주소': 'net', '그래픽 표현 방식': 'multi', '그래픽 관련 용어': 'multi', '네트워크 접속 장비': 'net',
+    '데이터 입력 방법': 'basic', '각종 데이터 입력': 'basic', '메모와 윗주': 'basic', '찾기/바꾸기': 'data',
+    '사용자 지정 표시 형식': 'format', '조건부 서식': 'format', '수식의 오류값': 'formula',
+    '수학/통계 함수': 'func', '논리/문자열 함수': 'func', '찾기/참조 함수': 'func', 'D(데이터베이스) 함수': 'func',
+    '정렬': 'data', '필터': 'data', '부분합': 'analysis', '피벗 테이블': 'analysis', '목표값 찾기': 'analysis',
+    '시나리오': 'analysis', '페이지 설정': 'print', '차트': 'analysis', '매크로': 'print'
+  };
+  PAST.addBest = function (items) {
+    items.forEach(function (x) { if (!x.dan && TAG_DAN[x.tag]) x.dan = TAG_DAN[x.tag]; });
+    PAST.best.items = PAST.best.items.concat(items);
+  };
 
   window.COMHWAL2_PAST = PAST;
 })();

@@ -98,6 +98,16 @@
   .yeargrp[open] summary::after{content:'▲'}
   .yeargrp .yn{font-weight:700} .yeargrp .yd{font-size:12px;color:var(--tx2);flex:1;text-align:right}
   .yeargrp .opts-mode{margin:0 0 12px} .yeargrp .modecard{background:var(--card)}
+  /* 단원별 기출 */
+  .dangrp{border-color:rgba(255,210,63,.45)} .dangrp summary::after{color:var(--gold)}
+  .danbody{padding:0 0 12px}
+  .danhead{font-size:12.5px;font-weight:700;color:var(--tx2);margin:6px 2px 8px}
+  .dangrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px;margin-bottom:8px}
+  .dancard{background:var(--card);border:1.5px solid transparent;border-radius:10px;padding:10px;color:var(--tx);
+    font-family:inherit;cursor:pointer;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center}
+  .dancard:hover{border-color:var(--gold)} .dancard:disabled{opacity:.4;cursor:default}
+  .dancard .di{grid-row:span 2;font-size:18px} .dancard .dn{font-size:13px;font-weight:700;line-height:1.35;word-break:keep-all}
+  .dancard .dc{font-size:11.5px;color:var(--tx2)}
 
   .navrow{display:flex;gap:10px;margin-top:16px}
   .navrow .btn{flex:1}
@@ -149,7 +159,7 @@
   .lk-m.bad{color:var(--no)} .lk-m.ok{color:var(--ok)}
 </style>
 </head>
-<body data-build="88cba509">
+<body data-build="e84cfc10">
 <div class="wrap">
   <div id="loading" class="loading">문제 은행을 불러오는 중…</div>
 
