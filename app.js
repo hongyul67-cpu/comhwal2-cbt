@@ -50,7 +50,7 @@ function roundPool(subj) {
   var out = [];
   PAST.rounds.forEach(function (r) {
     (r.qs || []).forEach(function (x) {
-      if (!subj || x.subj === subj) out.push({ subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name });
+      if (!subj || x.subj === subj) out.push({ subj: x.subj, subjName: SUBJ_NAME[x.subj], q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name, ver: x.ver });
     });
   });
   return out;
@@ -97,9 +97,17 @@ function makeQ(item, keepOrder, rnd) {
   return {
     subj: item.subj, subjName: item.subjName || SUBJ_NAME[item.subj], unit: item.unit,
     q: item.q, opts: opts, ans: opts.findIndex(function (o) { return o.correct; }),
-    ex: ex, sel: null, flag: false,
+    ex: ex, sel: null, flag: false, ver: item.ver,
   };
 }
+/* 2016~2020 기출(Windows 7·엑셀 2010 시절)은 지문을 원문 그대로 두고 작은 표시만 붙인다.
+   정답이 Windows 10·엑셀 2021 에서도 같은 문항만 실었다 — 달라지는 문항은 전사할 때 뺐다. */
+var VER_LABEL = { win7: '원문: Windows 7 기준', xl2010: '원문: Excel 2010 기준' };
+function verTag(q) {
+  return (q && VER_LABEL[q.ver]) ? '<div class="vertag">📎 ' + VER_LABEL[q.ver] + ' · 정답은 지금 버전에서도 같아요</div>' : '';
+}
+function normTxt(t) { return String(t == null ? '' : t).replace(/<[^>]*>/g, '').replace(/[\s'"‘’“”·.,?]/g, ''); }
+function dupKey(x) { return normTxt(x.q).slice(0, 40) + '|' + normTxt(x.o[x.a]).slice(0, 15); }
 function buildExam(counts, minutes, bestFirst) {
   var qs = [];
   SUBJECTS.forEach(function (s) {
@@ -108,11 +116,13 @@ function buildExam(counts, minutes, bestFirst) {
     var pool = bestFirst
       ? shuffle(bestPool(s.key).concat(roundPool(s.key))).concat(shuffle(poolOf(s.key)))
       : shuffle(poolOf(s.key).concat(bestPool(s.key)).concat(roundPool(s.key)));
-    // 같은 문제가 두 은행에 겹쳐 들어있을 수 있어 중복 제거.
-    // "조건부 서식…옳지 않은 것은?"처럼 지문이 같고 보기만 다른 기출이 있어 첫 보기까지 키에 포함한다.
+    // 같은 문제가 여러 은행에 겹쳐 들어있을 수 있어 중복 제거.
+    // "조건부 서식…옳지 않은 것은?"처럼 지문이 같고 보기만 다른 기출이 있어 정답 보기까지 키에 넣는다.
+    // 교재마다 띄어쓰기·보기 순서가 달라 태그·공백을 빼고, 첫 보기 대신 «정답 보기»로 비교한다
+    // (예전 키 «지문 앞50자|첫 보기 앞30자»는 겹치는 109쌍 중 30쌍을 놓쳤다).
     var seen = {}, added = 0;
     for (var j = 0; j < pool.length && added < want; j++) {
-      var k = String(pool[j].q).slice(0, 50) + '|' + String(pool[j].o[0]).slice(0, 30);
+      var k = dupKey(pool[j]);
       if (seen[k]) continue;
       seen[k] = 1;
       qs.push(makeQ(pool[j]));
@@ -176,6 +186,7 @@ function makeCard(title, desc, color, onclick) {
   el.onclick = onclick;
   return el;
 }
+var OPEN_YEARS = {};
 function renderStart() {
   hide('loading'); hide('exam'); hide('result'); hide('review'); show('start');
   var mb = $('examMix'), mn = $('examMixNote');
@@ -195,12 +206,31 @@ function renderStart() {
       'var(--warn)', startReviewExam));
   }
 
-  // 2) 실제 기출 회차
+  // 2) 실제 기출 회차 — 20회가 넘어 연도별로 접는다 (연 상태는 화면을 다시 그려도 유지)
   if (PAST && PAST.rounds && PAST.rounds.length) {
+    var byYear = {};
     PAST.rounds.forEach(function (r) {
-      box.appendChild(makeCard('📄 ' + r.name,
-        '<b style="color:var(--ok)">실제 기출</b> ' + (r.qs || []).length + '문항 · ' + (r.minutes || 40) + '분',
-        'var(--ok)', function () { startPastRound(r.id); }));
+      var y = String(r.id).slice(0, 4);
+      (byYear[y] = byYear[y] || []).push(r);
+    });
+    Object.keys(byYear).sort().reverse().forEach(function (y) {
+      var list = byYear[y].slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+      var nq = list.reduce(function (t, r) { return t + (r.qs || []).length; }, 0);
+      var d = document.createElement('details');
+      d.className = 'yeargrp';
+      d.open = !!OPEN_YEARS[y];
+      d.ontoggle = function () { OPEN_YEARS[y] = d.open; };
+      d.innerHTML = '<summary><span class="yn">📄 ' + y + '년 실제 기출</span>' +
+        '<span class="yd">' + list.length + '회 · ' + nq + '문항' + (+y <= 2020 ? ' · Windows 7·엑셀 2010 시절' : '') + '</span></summary>';
+      var inner = document.createElement('div');
+      inner.className = 'opts-mode';
+      list.forEach(function (r) {
+        inner.appendChild(makeCard(r.name,
+          '<b style="color:var(--ok)">실제 기출</b> ' + (r.qs || []).length + '문항 · ' + (r.minutes || 40) + '분',
+          'var(--ok)', function () { startPastRound(r.id); }));
+      });
+      d.appendChild(inner);
+      box.appendChild(d);
     });
   }
   // 3) 자주 출제되는 기출 모음
@@ -239,7 +269,7 @@ function startPastRound(id) {
   if (!r || !r.qs || !r.qs.length) { alert('해당 회차를 불러오지 못했습니다.'); return; }
   var mins = r.minutes || 40;
   var on = mixOn(), rnd = mixRnd('round:' + id);
-  var src = r.qs.map(function (x) { return { subj: x.subj, q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name }; });
+  var src = r.qs.map(function (x) { return { subj: x.subj, q: x.q, o: x.o, a: x.a, ex: x.ex, unit: r.name, ver: x.ver }; });
   if (on) src = shuffledBy(src, rnd);
   exam = {
     qs: src.map(function (x) { return makeQ(x, !on, rnd); }),
@@ -290,6 +320,7 @@ function renderQ() {
     '<div class="qcard">' +
       '<div class="qmeta"><div class="no">' + (exam.idx + 1) + ' / ' + total + ' · ' + q.subjName + '</div>' +
         '<button class="flagbtn' + (q.flag ? ' on' : '') + '" onclick="toggleFlag()">🚩 다시 볼 문제</button></div>' +
+      verTag(q) +
       '<div class="qtext">' + q.q + '</div>' +
       '<div class="opts">' + opts + '</div>' +
     '</div>';
@@ -487,7 +518,7 @@ function openReview() {
         (i === q.ans ? ' ✔' : (i === q.sel ? ' ✖(내 답)' : '')) + '</div></div>';
     }).join('');
     return '<div class="reviewitem"><div class="no" style="font-size:12px;color:var(--tx2);font-weight:700;margin-bottom:6px">' +
-      q.subjName + ' · ' + (q.unit || '') + '</div>' +
+      q.subjName + ' · ' + (q.unit || '') + '</div>' + verTag(q) +
       '<div class="qtext" style="font-size:16px">' + q.q + '</div>' +
       '<div class="opts">' + opts + '</div>' +
       '<div class="exp"><b>해설</b><br>' + q.ex + '</div></div>';

@@ -83,6 +83,22 @@
   .qtbl th{background:rgba(79,124,255,.18);font-weight:700;font-size:12px}
   .qtbl tr td:first-child{background:rgba(255,255,255,.04);color:var(--tx2);font-size:12px}
 
+  /* 문제 속 그림(차트·대화 상자) — 폰 폭에서도 넘치지 않게 */
+  .qimg{max-width:100%!important;height:auto;border-radius:8px;background:#fff}
+  .opt > div:last-child{min-width:0}
+  /* 옛 버전(Windows 7·엑셀 2010) 원문 표시 */
+  .vertag{display:inline-block;font-size:11.5px;color:var(--tx2);background:var(--card2);
+    border:1px dashed var(--line);border-radius:7px;padding:3px 8px;margin:0 0 10px}
+  /* 기출 회차 연도 묶음 */
+  .yeargrp{background:var(--card2);border:1.5px solid rgba(39,192,147,.35);border-radius:12px;padding:0 12px}
+  .yeargrp summary{cursor:pointer;list-style:none;padding:13px 4px;display:flex;justify-content:space-between;
+    align-items:center;gap:8px;flex-wrap:wrap}
+  .yeargrp summary::-webkit-details-marker{display:none}
+  .yeargrp summary::after{content:'▼';font-size:11px;color:var(--ok)}
+  .yeargrp[open] summary::after{content:'▲'}
+  .yeargrp .yn{font-weight:700} .yeargrp .yd{font-size:12px;color:var(--tx2);flex:1;text-align:right}
+  .yeargrp .opts-mode{margin:0 0 12px} .yeargrp .modecard{background:var(--card)}
+
   .navrow{display:flex;gap:10px;margin-top:16px}
   .navrow .btn{flex:1}
 
@@ -133,7 +149,7 @@
   .lk-m.bad{color:var(--no)} .lk-m.ok{color:var(--ok)}
 </style>
 </head>
-<body data-build="1c1c558c">
+<body data-build="88cba509">
 <div class="wrap">
   <div id="loading" class="loading">문제 은행을 불러오는 중…</div>
 
@@ -158,7 +174,7 @@
       <!-- 🔒 실제 기출은 파일 자체(past.enc)가 암호화되어 있고, 코드를 넣어야 열립니다.
            위 개념 문제 모의고사는 자작 문항이라 코드 없이 그대로 풀립니다. -->
       <div id="pastLock" class="lockbox hidden">
-        <div class="lk-t">🔒 <b>실제 기출 <span id="lockN">320문항</span></b> 은 코드를 넣어야 열려요</div>
+        <div class="lk-t">🔒 <b>실제 기출 <span id="lockN">901문항</span></b> 은 코드를 넣어야 열려요</div>
         <div class="lk-s">시중 교재를 옮긴 문항이라 그대로 공개할 수 없습니다.
           선생님께 받은 <b>이번 주 코드(8자리)</b>나 암호를 넣으세요.<br>
           위 <b>랜덤·과목별 모의고사</b>는 자작 개념 문항이라 코드 없이 바로 풀 수 있어요.</div>
